@@ -51,17 +51,23 @@ function loadInitialPipelineState(): PersistedPipelineState {
         const raw = localStorage.getItem(PIPELINE_UI_STATE_KEY);
         if (!raw) return empty;
         const saved = JSON.parse(raw) as PersistedPipelineState;
-        const restoredLogs = Array.isArray(saved.logs) ? saved.logs : [];
+
+        // If a run was in progress when the page was closed/refreshed,
+        // reset to idle — the WebSocket connection is gone and can't be
+        // reliably reattached. Completed results are preserved.
+        if (saved.isRunning) {
+            localStorage.removeItem(PIPELINE_UI_STATE_KEY);
+            return empty;
+        }
+
         return {
             currentStep: saved.currentStep ?? null,
             steps: Array.isArray(saved.steps) ? saved.steps : [],
-            logs: saved.isRunning && saved.activeRunId
-                ? [...restoredLogs, `Attempting to reattach to active run ${saved.activeRunId}...`]
-                : restoredLogs,
-            isRunning: !!saved.isRunning,
+            logs: Array.isArray(saved.logs) ? saved.logs : [],
+            isRunning: false,
             lastRun: saved.lastRun ?? null,
             finalReport: saved.finalReport ?? null,
-            activeRunId: saved.activeRunId ?? null,
+            activeRunId: null,
             mode: saved.mode || "pr",
             number: typeof saved.number === "number" ? saved.number : 95103,
         };

@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+:root {
+  --background: #050b14;
+  --foreground: #f2f8ff;
+  --card: rgba(12, 24, 44, 0.82);
+  --card-border: rgba(134, 176, 255, 0.28);
+  --accent: #d7e8ff;
+  --accent-foreground: #08111f;
+  --muted: #a8bfde;
+  --muted-bg: rgba(26, 45, 76, 0.7);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(126, 179, 255, 0.26) 0%, rgba(126, 179, 255, 0) 32%),
+    radial-gradient(circle at 86% 6%, rgba(96, 153, 255, 0.18) 0%, rgba(96, 153, 255, 0) 38%),
+    radial-gradient(circle at 50% 120%, rgba(155, 203, 255, 0.22) 0%, rgba(155, 203, 255, 0) 44%),
+    linear-gradient(180deg, #030913 0%, #071325 52%, #050d1a 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Section Separation ─── */
+.content-section {
+  @apply mb-12 last:mb-0;
+}
+
+.section-title {
+  @apply text-xl font-bold tracking-tight mb-6 flex items-center gap-2;
+}
+
+/* ─── Card System ─── */
+.app-card {
+  @apply rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm;
+  background: linear-gradient(170deg, rgba(15, 31, 57, 0.86) 0%, rgba(7, 17, 34, 0.9) 100%);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 20px 45px rgba(2, 10, 22, 0.52), inset 0 1px 0 rgba(198, 223, 255, 0.1);
+}
+
+.app-card-header {
+  @apply px-6 py-4;
+  border-bottom: 1px solid rgba(134, 176, 255, 0.22);
+  background: rgba(16, 32, 58, 0.72);
+}
+
+.app-card-content {
+  @apply p-6;
+}
+
+/* ─── Typography ─── */
+.mono-text {
+  font-family: var(--font-mono);
+}
+
+.label-caps {
+  @apply text-[10px] font-black uppercase;
+  letter-spacing: 0.2em;
+  color: #b9d0f3;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(143, 180, 236, 0.42);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(171, 204, 255, 0.66);
+}
+
+/* ─── GPU-accelerated fade-in ─── */
+.fade-in {
+  animation: fadeIn 0.4s ease-out both;
+  will-change: opacity, transform;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Stagger helper for card grids ─── */
+.stagger-item {
+  animation: fadeIn 0.35s ease-out both;
+  will-change: opacity, transform;
+}

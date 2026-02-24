@@ -1,0 +1,77 @@
+{
+    "name": "Welcome Bot — New PR Trigger",
+    "description": "Triggers on new PR opened. Checks if first-time contributor. Posts welcome comment and code quality report.",
+    "trigger": {
+        "type": "webhook",
+        "event": "pull_request.opened",
+        "source": "github"
+    },
+    "steps": [
+        {
+            "id": "step_1_check_contributor",
+            "name": "Check First-Time Contributor",
+            "type": "http_request",
+            "config": {
+                "method": "POST",
+                "url": "http://localhost:5000/internal/check-contributor",
+                "body": {
+                    "username": "{{trigger.pull_request.user.login}}",
+                    "pr_number": "{{trigger.pull_request.number}}",
+                    "pr_title": "{{trigger.pull_request.title}}"
+                }
+            },
+            "output": "contributor_check"
+        },
+        {
+            "id": "step_2_get_context",
+            "name": "Fetch Similar Issues and Code Owners",
+            "type": "http_request",
+            "config": {
+                "method": "POST",
+                "url": "http://localhost:5000/internal/get-pr-context",
+                "body": {
+                    "pr_number": "{{trigger.pull_request.number}}"
+                }
+            },
+            "output": "pr_context"
+        },
+        {
+            "id": "step_3_post_welcome",
+            "name": "Post Welcome Comment",
+            "type": "http_request",
+            "condition": "{{contributor_check.is_first_time}} == true",
+            "config": {
+                "method": "POST",
+                "url": "http://localhost:5000/internal/post-welcome",
+                "body": {
+                    "pr_number": "{{trigger.pull_request.number}}",
+                    "username": "{{trigger.pull_request.user.login}}",
+                    "pr_title": "{{trigger.pull_request.title}}",
+                    "similar_issues": "{{pr_context.similar_issues}}",
+                    "code_owners": "{{pr_context.code_owners}}",
+                    "relevant_docs": "{{pr_context.relevant_docs}}"
+                }
+            }
+        },
+        {
+            "id": "step_4_wait",
+            "name": "Wait Before Quality Report",
+            "type": "delay",
+            "config": {
+                "seconds": 30
+            }
+        },
+        {
+            "id": "step_5_quality_report",
+            "name": "Run and Post Code Quality Report",
+            "type": "http_request",
+            "config": {
+                "method": "POST",
+                "url": "http://localhost:5000/internal/run-quality-report",
+                "body": {
+                    "pr_number": "{{trigger.pull_request.number}}"
+                }
+            }
+        }
+    ]
+}

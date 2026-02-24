@@ -1,0 +1,14 @@
+{
+  "issues": {
+    "memory_leak": 1,
+    "auth_token": 2,
+    "stream_perf": 3,
+    "cluster_state": 4,
+    "duplicate": 7
+  },
+  "prs": {
+    "first_time": 5,
+    "with_conflict": 6
+  },
+  "repo": "tupakulamanoj/elasticsearch"
+}

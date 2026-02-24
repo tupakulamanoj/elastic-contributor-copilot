@@ -853,27 +853,33 @@ async def _execute_pipeline_run(run_id: str):
     conflict_report = ""
     final_output = ""
     run_failed = False
-    agents = [
-        (1, "Context Retriever", lambda n: process_issue(n, is_pr=(mode != "issue")),
-         "Searching 172K+ indexed issues & PRs to find duplicates, similar discussions, and relevant code owners using ELSER semantic search.",
-         ["find_similar_issues", "check_for_duplicates", "find_code_owners", "search_repository"]),
-        (2, "Architecture Critic", lambda n: review_pr(n, post_comment=False),
-         "Reviewing code diff against 15 coding standards — checking for anti-patterns, error handling, thread safety, and API conventions.",
-         ["search_coding_standards", "analyze_diff_patterns", "check_api_conventions"]),
-        (3, "Impact Quantifier", lambda n: assess_pr_impact(n, post_comment=False),
-         "Analyzing performance impact by cross-referencing changed files with benchmark data and historical performance regressions.",
-         ["query_benchmark_data", "search_performance_history", "analyze_hotpath_impact"]),
-        (4, "Conflict Resolver", lambda n: resolve_pr_conflicts(n, post_comment=False),
-         "Checking for reviewer disagreements and applying resolution patterns from past conflicts to suggest consensus.",
-         ["find_reviewer_conflicts", "search_resolution_examples", "analyze_review_sentiment"])
-    ]
+    agent_meta = {
+        1: ("Context Retriever",
+            "Searching 172K+ indexed issues & PRs to find duplicates, similar discussions, and relevant code owners using ELSER semantic search.",
+            ["find_similar_issues", "check_for_duplicates", "find_code_owners", "search_repository"]),
+        2: ("Architecture Critic",
+            "Reviewing code diff against 15 coding standards — checking for anti-patterns, error handling, thread safety, and API conventions. Receives context from Agent 1.",
+            ["search_coding_standards", "analyze_diff_patterns", "check_api_conventions"]),
+        3: ("Impact Quantifier",
+            "Analyzing performance impact by cross-referencing changed files with benchmark data. Receives context from Agent 1 + Agent 2 for deeper reasoning.",
+            ["query_benchmark_data", "search_performance_history", "analyze_hotpath_impact"]),
+        4: ("Conflict Resolver",
+            "Checking for reviewer disagreements and applying resolution patterns. Receives context from Agent 1 for ownership-aware mediation.",
+            ["find_reviewer_conflicts", "search_resolution_examples", "analyze_review_sentiment"]),
+    }
 
-    # For issue mode, only run Agent 1; skip agents 2-4
-    skipped_agents = []
+    # Determine which agents to run based on mode
     if mode == "issue":
-        skipped_agents = agents[1:]
-        agents = agents[:1]
+        agent_ids = [1]
+        skip_ids = [2, 3, 4]
+    elif mode == "conflict":
+        agent_ids = [1, 4]
+        skip_ids = [2, 3]
+    else:  # pr
+        agent_ids = [1, 2, 3]
+        skip_ids = [4]
 
+    agent_outputs = {}
 
     _append_run_event(run_id, {"type": "start", "run_id": run_id, "mode": mode, "number": number})
 
@@ -909,14 +915,29 @@ async def _execute_pipeline_run(run_id: str):
             sys.stdout = RunLogger(sys.__stdout__, log_queue)
             try:
                 with concurrent.futures.ThreadPoolExecutor() as executor:
-                    for aid, name, func, reasoning, tools_list in agents:
+                    for aid in agent_ids:
+                        name, reasoning, tools_list = agent_meta[aid]
                         _append_run_event(run_id, {
                             "type": "agent_start", "agent": aid, "name": name, "run_id": run_id,
                             "reasoning": reasoning, "tools": tools_list
                         })
                         t = time.time()
                         try:
-                            future = executor.submit(func, number)
+                            # Build the call with context chaining
+                            if aid == 1:
+                                future = executor.submit(process_issue, number, mode != "issue")
+                            elif aid == 2:
+                                future = executor.submit(review_pr, number, False, agent_outputs.get(1))
+                            elif aid == 3:
+                                prior3 = ""
+                                if agent_outputs.get(1):
+                                    prior3 += f"## Agent 1 (Context Retriever) Findings:\n{agent_outputs[1][:800]}\n\n"
+                                if agent_outputs.get(2):
+                                    prior3 += f"## Agent 2 (Architecture Critic) Findings:\n{agent_outputs[2][:800]}\n"
+                                future = executor.submit(assess_pr_impact, number, False, prior3 or None)
+                            elif aid == 4:
+                                future = executor.submit(resolve_pr_conflicts, number, False, agent_outputs.get(1))
+
                             while not future.done():
                                 await asyncio.sleep(0.1)
 
@@ -924,13 +945,13 @@ async def _execute_pipeline_run(run_id: str):
                             dur = int((time.time() - t) * 1000)
 
                             if isinstance(res, str):
+                                agent_outputs[aid] = res
                                 if aid == 2:
                                     architecture_report = res
                                 elif aid == 3:
                                     impact_report = res
                                 elif aid == 4:
                                     conflict_report = res
-
 
                             summary = res[:1000] if isinstance(res, str) else "Step completed"
                             step = {"agent": aid, "name": name, "success": True, "duration_ms": dur, "summary": summary}
@@ -947,14 +968,16 @@ async def _execute_pipeline_run(run_id: str):
                             _append_run_event(run_id, {"type": "agent_error", "agent": aid, "name": name, "error": str(e), "duration_ms": dur, "run_id": run_id})
 
                     # Emit skip events for agents not applicable in this mode
-                    for aid, name, _, reasoning, tools_list in skipped_agents:
+                    for sid in skip_ids:
+                        sname, sreasoning, stools = agent_meta[sid]
+                        skip_reason = f"Skipped — not applicable for {mode} mode"
                         _append_run_event(run_id, {
-                            "type": "agent_done", "agent": aid, "name": name, "success": True,
-                            "duration_ms": 0, "result": "Skipped — not applicable for issues",
+                            "type": "agent_done", "agent": sid, "name": sname, "success": True,
+                            "duration_ms": 0, "result": skip_reason,
                             "run_id": run_id, "skipped": True,
-                            "reasoning": reasoning, "tools_used": tools_list
+                            "reasoning": sreasoning, "tools_used": stools
                         })
-                        steps.append({"agent": aid, "name": name, "success": True, "duration_ms": 0, "summary": "Skipped — not applicable for issues", "skipped": True})
+                        steps.append({"agent": sid, "name": sname, "success": True, "duration_ms": 0, "summary": skip_reason, "skipped": True})
             finally:
                 sys.stdout = old_stdout
     except Exception as e:

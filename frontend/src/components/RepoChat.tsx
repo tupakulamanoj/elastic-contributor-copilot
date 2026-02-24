@@ -421,7 +421,7 @@ export default function RepoChat() {
             const prNum = parseInt(match[1]);
             try {
                 const resp = await fetch(
-                    `http://localhost:8000/api/pr/${prNum}/diff`
+                    `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/pr/${prNum}/diff`
                 );
                 if (resp.ok) {
                     const data = await resp.json();
@@ -453,7 +453,7 @@ export default function RepoChat() {
         checkForDiffRequest(text);
 
         try {
-            const resp = await fetch("http://localhost:8000/api/chat", {
+            const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

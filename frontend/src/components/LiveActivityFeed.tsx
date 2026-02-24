@@ -130,7 +130,7 @@ export default function LiveActivityFeed() {
 
         function connect() {
             if (unmounted) return;
-            const ws = new WebSocket("ws://localhost:8000/ws/events");
+            const ws = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, "ws")}/ws/events`);
             wsRef.current = ws;
 
             ws.onopen = () => {
@@ -214,8 +214,8 @@ export default function LiveActivityFeed() {
                                 <div
                                     key={ev.id}
                                     className={`flex items-start gap-3 px-5 py-3 transition-colors ${ev.type === "agent_processing"
-                                            ? "bg-[#0d1117] hover:bg-[#161b22]"
-                                            : "hover:bg-[#161b22]"
+                                        ? "bg-[#0d1117] hover:bg-[#161b22]"
+                                        : "hover:bg-[#161b22]"
                                         }`}
                                 >
                                     <div className="mt-0.5 shrink-0">{eventIcon(ev)}</div>

@@ -242,7 +242,7 @@ export default function WorkflowPage() {
         setRunMode(mode);
         setRunNumber(number);
         setIsRunning(true);
-        const ws = new WebSocket("ws://localhost:8000/ws/pipeline");
+        const ws = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, "ws")}/ws/pipeline`);
         wsRef.current = ws;
         ws.onopen = () => {
             ws.send(JSON.stringify({ mode, number }));
@@ -256,7 +256,7 @@ export default function WorkflowPage() {
         const timer = setTimeout(() => {
             if (isRunning && activeRunId) {
                 reattachAttemptedRef.current = true;
-                const ws = new WebSocket("ws://localhost:8000/ws/pipeline");
+                const ws = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, "ws")}/ws/pipeline`);
                 wsRef.current = ws;
                 ws.onopen = () => {
                     ws.send(JSON.stringify({ mode: runMode, number: runNumber, run_id: activeRunId }));

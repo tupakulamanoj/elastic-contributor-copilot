@@ -26,7 +26,7 @@ export default function MetricsCards() {
   useEffect(() => {
     let cancelled = false;
     function load() {
-      fetch("http://localhost:8000/api/stats")
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/stats`)
         .then((res) => res.json())
         .then((data) => {
           if (!cancelled) {

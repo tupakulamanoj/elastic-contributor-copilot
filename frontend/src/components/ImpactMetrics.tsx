@@ -47,7 +47,7 @@ export default function ImpactMetrics() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch("http://localhost:8000/api/impact")
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/impact`)
             .then((r) => r.json())
             .then((d) => {
                 setData(d);

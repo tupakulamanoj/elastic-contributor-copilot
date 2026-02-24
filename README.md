@@ -406,4 +406,4 @@ Contributor opens a PR on GitHub
 
 ## 📄 License
 
-Built for the **Elastic Hackathon 2025**. All rights reserved.
+Built for the **Elastic Hackathon 2026**. All rights reserved.

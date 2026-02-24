@@ -20,62 +20,6 @@ interface AgentStep {
     error?: string;
 }
 
-const PIPELINE_UI_STATE_KEY = "elastic_pilot_pipeline_ui_state_v1";
-
-interface PersistedPipelineState {
-    currentStep: number | null;
-    steps: AgentStep[];
-    logs: string[];
-    isRunning: boolean;
-    lastRun: { total_time: number; success: boolean } | null;
-    finalReport: { title: string; content: string } | null;
-    activeRunId: string | null;
-    mode: string;
-    number: number;
-}
-
-function loadInitialPipelineState(): PersistedPipelineState {
-    const empty: PersistedPipelineState = {
-        currentStep: null,
-        steps: [],
-        logs: [],
-        isRunning: false,
-        lastRun: null,
-        finalReport: null,
-        activeRunId: null,
-        mode: "pr",
-        number: 95103,
-    };
-    if (typeof window === "undefined") return empty;
-    try {
-        const raw = localStorage.getItem(PIPELINE_UI_STATE_KEY);
-        if (!raw) return empty;
-        const saved = JSON.parse(raw) as PersistedPipelineState;
-
-        // If a run was in progress when the page was closed/refreshed,
-        // reset to idle — the WebSocket connection is gone and can't be
-        // reliably reattached. Completed results are preserved.
-        if (saved.isRunning) {
-            localStorage.removeItem(PIPELINE_UI_STATE_KEY);
-            return empty;
-        }
-
-        return {
-            currentStep: saved.currentStep ?? null,
-            steps: Array.isArray(saved.steps) ? saved.steps : [],
-            logs: Array.isArray(saved.logs) ? saved.logs : [],
-            isRunning: false,
-            lastRun: saved.lastRun ?? null,
-            finalReport: saved.finalReport ?? null,
-            activeRunId: null,
-            mode: saved.mode || "pr",
-            number: typeof saved.number === "number" ? saved.number : 95103,
-        };
-    } catch {
-        return empty;
-    }
-}
-
 function buildFallbackFinalReport(mode: string, number: number, runSteps: AgentStep[]) {
     const step2 = runSteps.find((s) => s.agent === 2);
     const step3 = runSteps.find((s) => s.agent === 3);
@@ -115,42 +59,7 @@ export default function WorkflowPage() {
     const [runMode, setRunMode] = useState("pr");
     const [runNumber, setRunNumber] = useState(95103);
     const wsRef = useRef<WebSocket | null>(null);
-    const reattachAttemptedRef = useRef(false);
 
-    // Mirror state to a ref so the unmount cleanup can read the LATEST values
-    const stateRef = useRef<PersistedPipelineState>({
-        currentStep: null, steps: [], logs: [], isRunning: false,
-        lastRun: null, finalReport: null, activeRunId: null, mode: "pr", number: 95103,
-    });
-
-    // Load from localStorage on mount
-    useEffect(() => {
-        const saved = loadInitialPipelineState();
-        setCurrentStep(saved.currentStep);
-        setSteps(saved.steps);
-        setLogs(saved.logs);
-        setIsRunning(saved.isRunning);
-        setLastRun(saved.lastRun);
-        setFinalReport(saved.finalReport);
-        setActiveRunId(saved.activeRunId);
-        setRunMode(saved.mode);
-        setRunNumber(saved.number);
-        stateRef.current = saved;
-    }, []);
-
-    // Keep ref + localStorage in sync with state
-    useEffect(() => {
-        const payload: PersistedPipelineState = {
-            currentStep, steps, logs, isRunning, lastRun, finalReport, activeRunId,
-            mode: runMode, number: runNumber,
-        };
-        stateRef.current = payload;
-        try {
-            localStorage.setItem(PIPELINE_UI_STATE_KEY, JSON.stringify(payload));
-        } catch (e) {
-            console.warn("Failed to persist pipeline UI state:", e);
-        }
-    }, [currentStep, steps, logs, isRunning, lastRun, finalReport, activeRunId, runMode, runNumber]);
 
     const attachPipelineSocketHandlers = useCallback((ws: WebSocket, mode: string, number: number) => {
         ws.onmessage = (event) => {
@@ -256,31 +165,9 @@ export default function WorkflowPage() {
         attachPipelineSocketHandlers(ws, mode, number);
     };
 
-    // Reattach to a running pipeline on mount (e.g. navigated back)
-    useEffect(() => {
-        if (reattachAttemptedRef.current) return;
-        const timer = setTimeout(() => {
-            if (isRunning && activeRunId) {
-                reattachAttemptedRef.current = true;
-                const ws = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, "ws")}/ws/pipeline`);
-                wsRef.current = ws;
-                ws.onopen = () => {
-                    ws.send(JSON.stringify({ mode: runMode, number: runNumber, run_id: activeRunId }));
-                };
-                attachPipelineSocketHandlers(ws, runMode, runNumber);
-            }
-        }, 200);
-        return () => clearTimeout(timer);
-    }, [isRunning, activeRunId, runMode, runNumber, attachPipelineSocketHandlers]);
-
-    // On unmount: persist latest state to localStorage BEFORE closing WebSocket
+    // On unmount: close WebSocket cleanly
     useEffect(() => {
         return () => {
-            // Write the latest state ref to localStorage synchronously during cleanup
-            try {
-                localStorage.setItem(PIPELINE_UI_STATE_KEY, JSON.stringify(stateRef.current));
-            } catch { /* ignore */ }
-            // Close WebSocket without triggering state resets
             if (wsRef.current) {
                 wsRef.current.onclose = null;
                 wsRef.current.onerror = null;

@@ -302,7 +302,7 @@ No open duplicates found.
         glow: "rgba(240,168,255,0.15)",
         appliesTo: "PRs Only",
         description:
-            "Reviews the code diff of a pull request against 15 coding standards automatically. Checks for anti-patterns, error handling gaps, thread safety issues, naming conventions, and API contract violations — providing actionable feedback before human reviewers even look at the code.",
+            "Reviews the code diff of a pull request against 15 coding standards. Receives context from Agent 1 (similar issues, code owners) to check whether the PR repeats known patterns or aligns with team ownership boundaries.",
         whatItDoes: [
             "Analyzes the full diff for coding standard violations and anti-patterns",
             "Checks error handling — uncaught exceptions, missing null checks, silent failures",
@@ -336,7 +336,7 @@ Overall clean implementation with minor issues.`,
         glow: "rgba(255,204,102,0.15)",
         appliesTo: "PRs Only",
         description:
-            "Assesses the performance impact of code changes by cross-referencing modified files with historical benchmark data and past performance regressions. Flags changes that touch performance-critical hotpaths and estimates potential impact.",
+            "Assesses the performance impact of code changes by cross-referencing modified files with historical benchmark data. Receives context from both Agent 1 (similar issues) and Agent 2 (architectural violations) to factor prior findings into its risk assessment.",
         whatItDoes: [
             "Cross-references changed files with known performance-critical code paths",
             "Searches benchmark history for regressions related to similar changes",
@@ -370,7 +370,7 @@ across the last 90 days of nightly benchmarks.`,
         glow: "rgba(102,238,187,0.15)",
         appliesTo: "PRs Only",
         description:
-            "Monitors reviewer comments for disagreements and conflicting feedback. When conflicts are detected, it searches past resolution patterns across the repository to suggest compromise approaches and help the team reach consensus faster.",
+            "Monitors reviewer comments for disagreements and conflicting feedback. Receives context from Agent 1 (similar issues, code ownership) to determine which reviewer's position aligns with the team responsible for the affected code and cite how similar conflicts were resolved.",
         whatItDoes: [
             "Parses all reviewer comments to detect contradictory feedback",
             "Identifies common conflict patterns — style vs. performance, scope disagreements",
@@ -410,7 +410,7 @@ const WORKFLOW_STEPS = [
     {
         icon: Brain,
         title: "Agent Pipeline",
-        desc: "4 specialized AI agents run sequentially, each analyzing a different dimension",
+        desc: "4 specialized AI agents run in a chain — each passes findings to the next for deeper reasoning",
     },
     {
         icon: MessageSquare,
@@ -443,10 +443,10 @@ export default function HowItWorksPage() {
                             </span>
                         </h1>
                         <p className="max-w-2xl mx-auto text-sm text-[#a8c4e8] leading-relaxed">
-                            Every GitHub issue and pull request triggers a pipeline of specialized AI agents.
-                            Each agent uses Elasticsearch's semantic search to analyze a different dimension
-                            — from duplicate detection to performance impact — and posts actionable
-                            insights automatically.
+                            Every GitHub issue and pull request triggers a pipeline of chained AI agents.
+                            Each agent uses Elasticsearch's semantic search and passes its findings to the next
+                            — building richer context at every step for truly intelligent,
+                            multi-agent reasoning.
                         </p>
                     </motion.div>
                 </section>
@@ -562,10 +562,10 @@ export default function HowItWorksPage() {
                             </div>
                             <div className="p-5 space-y-3">
                                 {[
-                                    { name: "Context Retriever", icon: Search, color: "#88c0ff" },
-                                    { name: "Architecture Critic", icon: ShieldAlert, color: "#f0a8ff" },
-                                    { name: "Impact Quantifier", icon: Zap, color: "#ffcc66" },
-                                    { name: "Conflict Resolver", icon: Scale, color: "#66eebb" },
+                                    { name: "Context Retriever", icon: Search, color: "#88c0ff", chain: "" },
+                                    { name: "Architecture Critic", icon: ShieldAlert, color: "#f0a8ff", chain: "← receives Agent 1 context" },
+                                    { name: "Impact Quantifier", icon: Zap, color: "#ffcc66", chain: "← receives Agent 1 + 2 context" },
+                                    { name: "Conflict Resolver", icon: Scale, color: "#66eebb", chain: "← receives Agent 1 context" },
                                 ].map((agent, i) => (
                                     <motion.div
                                         key={i}
@@ -580,12 +580,17 @@ export default function HowItWorksPage() {
                                         }}
                                     >
                                         <agent.icon className="h-4 w-4" style={{ color: agent.color }} />
-                                        <span className="text-xs font-bold text-white">Agent {i + 1} — {agent.name}</span>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold text-white">Agent {i + 1} — {agent.name}</span>
+                                            {agent.chain && (
+                                                <span className="text-[9px] text-[#88c0ff99] mt-0.5">{agent.chain}</span>
+                                            )}
+                                        </div>
                                         <span className="ml-auto text-[9px] font-bold uppercase tracking-widest text-[#66eebb]">RUNS</span>
                                     </motion.div>
                                 ))}
                                 <p className="text-[10px] text-[#8ba4c7] mt-2 pl-1">
-                                    PRs get the full pipeline — code review, performance analysis, and conflict resolution.
+                                    PRs get the full chained pipeline — each agent passes context to the next for deeper analysis.
                                 </p>
                             </div>
                         </motion.div>
@@ -608,7 +613,8 @@ export default function HowItWorksPage() {
                             <h2 className="text-2xl font-black text-white tracking-tight mb-2">Deep Dive: Meet the Agents</h2>
                             <p className="text-xs text-[#a8c4e8] max-w-lg mx-auto">
                                 Each agent is a specialized AI model connected to Elasticsearch tools.
-                                Here's exactly what each one does and why.
+                                Agents are chained — each one receives findings from prior agents
+                                for multi-agent reasoning.
                             </p>
                         </div>
                     </AnimateOnScroll>

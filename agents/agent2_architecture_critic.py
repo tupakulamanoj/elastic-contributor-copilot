@@ -21,7 +21,7 @@ def get_pr_metadata(pr_number):
     resp.raise_for_status()
     return resp.json()
 
-def build_review_prompt(pr_metadata, file_chunks):
+def build_review_prompt(pr_metadata, file_chunks, prior_context=None):
     pr_title  = pr_metadata.get("title", "")
     pr_body   = pr_metadata.get("body", "") or ""
     pr_author = pr_metadata["user"]["login"]
@@ -36,8 +36,21 @@ URL:    {pr_url}
 
 PR Description:
 {pr_body[:1000]}
+"""
 
+    if prior_context:
+        prompt += f"""
 ---
+Context from Prior Agent Analysis (Agent 1 — Context Retriever):
+{prior_context[:1500]}
+
+Use the above context to inform your review. If similar issues were found,
+check if this PR addresses or repeats the same patterns. If code owners were
+identified, note whether the changes align with team ownership boundaries.
+---
+"""
+
+    prompt += f"""
 Code Changes to Review ({len(file_chunks)} files):
 """
 
@@ -100,7 +113,7 @@ def post_github_comment(pr_number, comment_body):
     print(f"Posted review comment to PR #{pr_number}")
     return resp.json()
 
-def review_pr(pr_number, post_comment=False):
+def review_pr(pr_number, post_comment=False, prior_context=None):
     print(f"\n{'='*60}")
     print(f"Architecture Critic reviewing PR #{pr_number}")
     print('='*60)
@@ -127,7 +140,7 @@ def review_pr(pr_number, post_comment=False):
         return None
 
     print("Building review prompt...")
-    prompt   = build_review_prompt(pr_metadata, reviewable[:5])  # cap at 5 files per run
+    prompt   = build_review_prompt(pr_metadata, reviewable[:5], prior_context=prior_context)  # cap at 5 files per run
 
     print("Calling Architecture Critic agent...")
     response = call_agent(prompt)

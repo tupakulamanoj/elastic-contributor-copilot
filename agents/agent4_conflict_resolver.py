@@ -34,13 +34,27 @@ def call_agent(prompt):
     resp.raise_for_status()
     return resp.json()
 
-def build_conflict_prompt(pr_number, conflicts):
+def build_conflict_prompt(pr_number, conflicts, prior_context=None):
     prompt = f"""
 Conflict Resolution Request for PR #{pr_number}
 
 {len(conflicts)} conflict(s) detected between reviewers.
 
 """
+
+    if prior_context:
+        prompt += f"""---
+Context from Prior Agent Analysis (Agent 1 — Context Retriever):
+{prior_context[:1500]}
+
+Use the above context to inform your conflict resolution. If similar issues
+were resolved before, cite how the conflict was handled in those cases.
+Code ownership information can help determine which reviewer's position
+aligns with the team responsible for the affected code.
+---
+
+"""
+
     for i, conflict in enumerate(conflicts, 1):
         prompt += f"""
 ---
@@ -89,7 +103,7 @@ def post_github_comment(pr_number, body):
     resp.raise_for_status()
     print(f"Posted conflict resolution to PR #{pr_number}")
 
-def resolve_pr_conflicts(pr_number, post_comment=False):
+def resolve_pr_conflicts(pr_number, post_comment=False, prior_context=None):
     print(f"\n{'='*60}")
     print(f"Conflict Resolver scanning PR #{pr_number}")
     print('='*60)
@@ -119,7 +133,7 @@ No reviewer conflicts detected in this PR. Consensus maintained.
     for c in conflicts:
         print(f"  - {c['topic']}: @{c['reviewer_a']} vs @{c['reviewer_b']}")
 
-    prompt   = build_conflict_prompt(pr_number, conflicts)
+    prompt   = build_conflict_prompt(pr_number, conflicts, prior_context=prior_context)
     print("\nCalling Conflict Resolver agent...")
     response = call_agent(prompt)
     # Extract clean message: API returns {"response": {"message": "..."}, "steps": [...]}

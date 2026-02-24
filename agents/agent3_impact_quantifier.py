@@ -32,10 +32,20 @@ def call_agent(prompt):
     resp.raise_for_status()
     return resp.json()
 
-def build_impact_prompt(pr_number, file_chunks, risk_assessments):
+def build_impact_prompt(pr_number, file_chunks, risk_assessments, prior_context=None):
     prompt = f"Performance Impact Assessment for PR #{pr_number}\n\n"
     prompt += f"Changed Files: {len(file_chunks)}\n"
     prompt += f"Modules Affected: {len(risk_assessments)}\n\n"
+
+    if prior_context:
+        prompt += f"""---
+Context from Prior Agent Analysis:
+{prior_context[:2000]}
+
+Use the above context to enrich your assessment. If architectural violations
+were flagged, factor them into the risk level. If similar past issues caused
+regressions, highlight the correlation.
+---\n\n"""
 
     for assessment in risk_assessments:
         module = assessment["module"]
@@ -63,7 +73,7 @@ Using the benchmark tools available to you:
 """
     return prompt.strip()
 
-def assess_pr_impact(pr_number, post_comment=False):
+def assess_pr_impact(pr_number, post_comment=False, prior_context=None):
     print(f"\n{'='*60}")
     print(f"Impact Quantifier assessing PR #{pr_number}")
     print('='*60)
@@ -89,7 +99,7 @@ def assess_pr_impact(pr_number, post_comment=False):
         print(msg)
         return msg
 
-    prompt   = build_impact_prompt(pr_number, chunks, risk_assessments)
+    prompt   = build_impact_prompt(pr_number, chunks, risk_assessments, prior_context=prior_context)
     response = call_agent(prompt)
     # Extract clean message: API returns {"response": {"message": "..."}, "steps": [...]}
     if "response" in response and isinstance(response["response"], dict):

@@ -143,6 +143,7 @@ def run_pr_pipeline(pr_number, username=None, pr_title=None, is_first_time=False
             pr_title = pr_title or f"PR #{pr_number}"
 
     # Agent 1 — Context Retriever
+    agent1_output = None
     with Timer() as t:
         try:
             agent1_output = process_issue(pr_number, is_pr=True)
@@ -156,10 +157,11 @@ def run_pr_pipeline(pr_number, username=None, pr_title=None, is_first_time=False
             log.error(f"Agent 1 failed: {e}")
             result.add_step("Agent 1: Context Retriever", t.elapsed_ms, str(e), success=False)
 
-    # Agent 2 — Architecture Critic
+    # Agent 2 — Architecture Critic (receives Agent 1 context)
+    agent2_output = None
     with Timer() as t:
         try:
-            agent2_output = review_pr(pr_number, post_comment=True)
+            agent2_output = review_pr(pr_number, post_comment=True, prior_context=agent1_output)
             violations    = _count_violations(agent2_output)
             result.add_step(
                 "Agent 2: Architecture Critic",
@@ -172,10 +174,15 @@ def run_pr_pipeline(pr_number, username=None, pr_title=None, is_first_time=False
             log.error(f"Agent 2 failed: {e}")
             result.add_step("Agent 2: Architecture Critic", t.elapsed_ms, str(e), success=False)
 
-    # Agent 3 — Impact Quantifier
+    # Agent 3 — Impact Quantifier (receives Agent 1 + 2 context)
+    prior_for_agent3 = ""
+    if agent1_output:
+        prior_for_agent3 += f"## Agent 1 (Context Retriever) Findings:\n{agent1_output[:800]}\n\n"
+    if agent2_output:
+        prior_for_agent3 += f"## Agent 2 (Architecture Critic) Findings:\n{agent2_output[:800]}\n"
     with Timer() as t:
         try:
-            agent3_output = assess_pr_impact(pr_number, post_comment=True)
+            agent3_output = assess_pr_impact(pr_number, post_comment=True, prior_context=prior_for_agent3 or None)
             risk_level    = _extract_risk_level(agent3_output)
             result.add_step(
                 "Agent 3: Impact Quantifier",
@@ -209,14 +216,30 @@ def run_pr_pipeline(pr_number, username=None, pr_title=None, is_first_time=False
 def run_conflict_pipeline(pr_number):
     """
     Pipeline for conflict detection on a PR with reviewer disagreements.
-    Runs: Agent 4 (Conflict Resolver)
+    Runs: Agent 1 (context) → Agent 4 (Conflict Resolver)
     """
     result = PipelineResult("conflict", pr_number)
     log.info(f"Starting conflict pipeline for #{pr_number}")
 
+    # Agent 1 — Context Retriever (gather context for Agent 4)
+    agent1_output = None
     with Timer() as t:
         try:
-            agent4_output  = resolve_pr_conflicts(pr_number, post_comment=True)
+            agent1_output = process_issue(pr_number, is_pr=True)
+            result.add_step(
+                "Agent 1: Context Retriever",
+                t.elapsed_ms,
+                _summarize(agent1_output),
+                success=True
+            )
+        except Exception as e:
+            log.error(f"Agent 1 failed: {e}")
+            result.add_step("Agent 1: Context Retriever", t.elapsed_ms, str(e), success=False)
+
+    # Agent 4 — Conflict Resolver (receives Agent 1 context)
+    with Timer() as t:
+        try:
+            agent4_output  = resolve_pr_conflicts(pr_number, post_comment=True, prior_context=agent1_output)
             conflict_count = _count_conflicts(agent4_output)
             result.add_step(
                 "Agent 4: Conflict Resolver",

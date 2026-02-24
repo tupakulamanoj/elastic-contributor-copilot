@@ -1,5 +1,12 @@
+# Core
 elasticsearch
-requests 
+requests
 python-dotenv
-flask
 schedule
+
+# Backend
+fastapi
+uvicorn[standard]
+websockets
+
+# Utilities (stdlib: os, sys, json, re, time, uuid, hashlib, hmac, base64, pathlib, datetime, logging, threading)
